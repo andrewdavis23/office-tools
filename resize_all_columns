@@ -1,0 +1,12 @@
+Sub Resize_All_Columns()
+'
+' Resize_All_Columns Macro
+'
+' Keyboard Shortcut: Ctrl+q
+'
+    Cells.Select
+    Cells.EntireColumn.AutoFit
+    Cells.EntireColumn.AutoFit
+    Cells.EntireColumn.AutoFit
+    Range("A1").Select
+End Sub
