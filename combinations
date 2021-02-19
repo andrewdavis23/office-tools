@@ -1,0 +1,19 @@
+Sub Combinations()
+
+Dim i As Integer
+Dim j As Integer
+Dim c As Integer
+c = 0
+
+' Select two columns
+Range("D8", Range("D8").End(xlToRight).End(xlDown)).Clear
+
+For i = 8 To Range("B8").End(xlDown).Row
+    For j = 8 To Range("A8").End(xlDown).Row
+        Cells(j + c, 5) = Cells(i, 2)
+        Cells(j + c, 4) = Cells(j, 1)
+    Next j
+    c = c + Range("A6").End(xlDown).Row - 7
+Next i
+    
+End Sub
