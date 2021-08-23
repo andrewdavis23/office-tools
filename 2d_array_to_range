@@ -1,0 +1,13 @@
+Sub Test_2()
+' printing 2d array to range
+    Dim R As Long
+    Dim C As Long
+    Dim Arr(10, 2) As Variant
+    For R = 0 To UBound(Arr, 1) - 1
+        For C = 0 To UBound(Arr, 2) - 1
+            Arr(R, C) = "R" & CStr(R) & "C" & CStr(C)
+        Next C
+    Next R
+    ActiveSheet.Range("A1").Resize(UBound(Arr, 1), UBound(Arr, 2)).Value = Arr
+    ActiveSheet.Range("A1").Resize(UBound(Arr, 1), UBound(Arr, 2)).Select
+End Sub
