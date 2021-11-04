@@ -1,6 +1,5 @@
 from tkinter import *
 # from numpy import right_shift
-from tkcalendar import *
 from tkinter import filedialog
 from datetime import date
 from datetime import timedelta
@@ -217,7 +216,7 @@ def produce_file():
         df_trans_second_out.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
              
     else:
-        message += '\nProgram size not 1 or 2. Prep this one manually.\n'
+        message += '\nProgram size not 1 or 2. See the tbl_Event tab in the progam file.\n'
 
     print_message(message, False)
 
@@ -226,37 +225,37 @@ root.title('Secondary Transaction Creator')
 root.geometry('900x450')
 
 left_frame = Frame(root)
-left_frame.grid(row=0, column=0)
+left_frame.pack(side=LEFT)
 
 right_frame = Frame(root)
-right_frame.grid(row=0, column=1)
+right_frame.pack(side=LEFT)
 
 right_up = Frame(right_frame)
-right_up.grid(row=0, column=0)
+right_up.pack(side=TOP)
 
 right_down = Frame(right_frame)
-right_down.grid(row=1, column=0)
+right_down.pack(side=BOTTOM)
 
 # LEFT FRAME
     
 # R1 = Radiobutton(left_frame, text = 'Standard Logic', variable = sec_logic,
 #         value = 1, indicator = 1,
 #         background = "light blue")
-# R1.grid(row=3, column=0)
+# R1.grid(row=0, column=0)
 
 # R2 = Radiobutton(left_frame, text = 'Alternate Logic', variable = sec_logic,
 #         value = 2, indicator = 1,
 #         background = "light blue")
-# R2.grid(row=3, column=1)
+# R2.grid(row=1, column=0)
 
-L1 = 'Standard Logic:\n  PK=1 -> SEC=PK*3\n  PK*2>CAP -> SEC=PK\n  Else SEC=PK*2'
-L2 = 'Alt Logic #1:\n  PK=1 -> SEC=60\n  Else SEC=PK*5'
+L1 = 'Standard Logic:\n  PK = 1 ⇒ SEC = PK*3\n  PK*2 > CAP ⇒ SEC = PK\n  Else SEC = PK*2'
+L2 = 'Alt Logic #1:\n  PK=1 ⇒ SEC=60\n  Else SEC=PK*5'
 
 L1 = Label(left_frame, text=L1)
 L2 = Label(left_frame, text=L2)
 
-L1.grid(row=4, column=0)
-L2.grid(row=4, column=1)
+L1.grid(row=0, column=1)
+L2.grid(row=1, column=1)
 
 # RIGHT FRAME
 
