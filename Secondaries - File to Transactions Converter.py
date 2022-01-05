@@ -116,9 +116,10 @@ def produce_file():
     global df_store
     global df_item
     message = ''
+    trans_cols = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS']
 
     if prog_size == 1:
-        # join the stores and items where half
+        # Inner join the stores and items on division and size where half is first/second/both and secondary capacity > 0.
         df_trans_in = pd.merge(df_item.loc[(df_item['Sec_Cap']>0) & (df_item['Half']==1)], df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
         
         # drop columns not needed in transmission file
@@ -142,7 +143,7 @@ def produce_file():
         df_trans_in['PRCS_TS'] = p_in
 
         # reorder columns
-        df_trans_in = df_trans_in.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
+        df_trans_in = df_trans_in.reindex(columns = trans_cols)
 
         # copy out file from in
         df_trans_out = df_trans_in.copy()
@@ -162,13 +163,12 @@ def produce_file():
         message += '\n\nOUT-file saved to\n   {} OUT.txt\n   # of rows = {}'.format(fp,df_trans_out.shape[0])
 
     elif prog_size == 2:
-        # HalfWord is first, second, both
+        # HalfWord is first, second, both.  Merge to lookup the half word
         df_halves = pd.read_excel(program_file, sheet_name='Items by Half', usecols='A:B')
         df_halves.columns = ['ItemNum', 'HalfWord']
         df_item = pd.merge(df_item, df_halves, how='inner', left_on='ItemNum', right_on='ItemNum')
 
-        # join the stores and items where half
-
+        # Inner join the stores and items on division and size where half is first/second/both and secondary capacity > 0.
         # first and both
         df_trans_first_in = pd.merge(df_item.loc[(df_item['Sec_Cap']>0) & ((df_item['HalfWord']=='First')|(df_item['HalfWord']=='Both'))], df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
         # first
@@ -181,40 +181,56 @@ def produce_file():
         trans_list = [df_trans_first_in, df_trans_first_out, df_trans_second_in, df_trans_second_out]
 
         p_first_start = df_event.loc[0,'Start_Date']
-        p_first_start = p_first_start - timedelta(days=1)
-        p_first_start = p_first_start.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_first_in['PRCS_TS'] = p_first_start
+        p_first_temp = p_first_start - timedelta(days=1)
+        p_first_in = p_first_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
+        df_trans_first_in['PRCS_TS'] = p_first_in
 
         p_first_end = df_event.loc[0,'End_Date']
-        p_first_end = p_first_end - timedelta(weeks=2)
-        p_first_end = p_first_end.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_first_out['PRCS_TS'] = p_first_end
+        p_first_temp = p_first_end - timedelta(weeks=2)
+        p_first_out = p_first_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
+        df_trans_first_out['PRCS_TS'] = p_first_out
 
         p_second_start = df_event.loc[1,'Start_Date']
-        p_second_start = p_second_start - timedelta(days=1)
-        p_second_start = p_second_start.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_second_in['PRCS_TS'] = p_second_start
+        p_second_temp = p_second_start - timedelta(days=1)
+        p_second_in = p_second_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
+        df_trans_second_in['PRCS_TS'] = p_second_in
 
         p_second_end = df_event.loc[1,'End_Date']
-        p_second_end = p_second_end - timedelta(weeks=2)
-        p_second_end = p_second_end.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_second_out['PRCS_TS'] = p_second_end
+        p_second_temp = p_second_end - timedelta(weeks=2)
+        p_second_out = p_second_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
+        df_trans_second_out['PRCS_TS'] = p_second_out
 
         for i in trans_list:
-            i.drop(['Half','Size','Division','Div','BA_Filter','HalfWord','Location'], axis=1, inplace=True)
+            i.drop(['Half','Size','Division','Div','BA_Filter','HalfWord','Location','Quantity','Description'], axis=1, inplace=True)
             i.rename(columns={'StoreNum': 'STR_NUM', 'ItemNum': 'REF_NUM', 'Sec_Cap':'STR_MAINT_NUM'}, inplace=True)
             i.insert(0,'STR_MAINT_TRANS_ID','',allow_duplicates=True)
             i.insert(0,'STR_MAINT_CD','N',allow_duplicates=True)
             i.insert(0,'STR_MAINT_CHAR_TXT','(null)',allow_duplicates=True)
-            i.insert(0,['PRCS_CD'],'T',allow_duplicates=True)
-            i.insert(0,['USER_ID'],'nuajd15',allow_duplicates=True)
-            i.insert(0,['CRT_TS'],'(null)',allow_duplicates=True)
+            i.insert(0,'PRCS_CD','T',allow_duplicates=True)
+            i.insert(0,'USER_ID','nuajd15',allow_duplicates=True)
+            i.insert(0,'CRT_TS','(null)',allow_duplicates=True)
+            i.insert(0,'STR_ID', i['STR_NUM'],allow_duplicates=True)
+            i.insert(0,'STR_MAINT_TRANS_CD','IPSC',allow_duplicates=True)
 
-        df_trans_first_in.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
-        df_trans_first_out.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
-        df_trans_second_in.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
-        df_trans_second_out.reindex(columns = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS'])
+        df_trans_first_in = df_trans_first_in.reindex(columns = trans_cols)
+        df_trans_first_out = df_trans_first_out.reindex(columns = trans_cols)
+        df_trans_second_in = df_trans_second_in.reindex(columns = trans_cols)
+        df_trans_second_out = df_trans_second_out.reindex(columns = trans_cols)
              
+        fp = os.path.dirname(program_folder) + '/in and out files/' + df_event.iloc[0,2]
+        df_trans_first_in.to_csv('{}FIRST IN.txt'.format(fp), sep='\t', index=False)
+        df_trans_first_out.to_csv('{}FIRST OUT.txt'.format(fp), sep='\t', index=False)
+        df_trans_second_in.to_csv('{}SECOND IN.txt'.format(fp), sep='\t', index=False)
+        df_trans_second_out.to_csv('{}SECOND OUT.txt'.format(fp), sep='\t', index=False)
+        message += '\nFIRST HALF\n'
+        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_first_start, p_first_end)    
+        message += '\tIN\t{}\t\t\tOUT\t{}'.format(p_first_in, p_first_out) 
+        message += '\nSECOND HALF\n'
+        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_second_start, p_second_end)    
+        message += '\tIN\t{}\t\t\tOUT\t{}'.format(p_second_in, p_second_out)
+        message += '\n\nFILES SAVED TO {}'.format(fp)
+        message += '\n\tFIRST IN\t{} rows\n\tFIRST OUT\t{}\n\tSECOND IN\t{}\n\tSECOND OUT\t{}'.format(df_trans_first_in.shape[0],df_trans_first_out.shape[0],df_trans_second_in.shape[0],df_trans_second_out.shape[0])
+
     else:
         message += '\nProgram size not 1 or 2. See the tbl_Event tab in the progam file.\n'
 
