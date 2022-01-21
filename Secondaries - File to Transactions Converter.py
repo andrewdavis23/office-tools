@@ -9,8 +9,6 @@ import os
 prog_size = 0
 program_folder = ''
 program_file = ''
-# CHANGE THIS MANUALLY - RADIO BUTTONS NOT WORKING
-sec_logic = 1
 
 df_event = pd.DataFrame()
 df_store = pd.DataFrame()
@@ -49,6 +47,7 @@ def load_program():
     global df_event
     global df_store
     global df_item
+    global sec_logic
 
     # User picks program file, return if user cancels fialdialog ''
     program_file = filedialog.askopenfilenames()
@@ -84,16 +83,16 @@ def load_program():
         df_store = df_store.dropna()
 
         # PREPROCESS: Calculate secondary capacity from capacity, casepack then drop columns
-        if sec_logic == 1:
+        if sec_logic.get() == 1:
             df_item['Sec_Cap'] = df_item.apply(standard_sec_logic, axis=1)
             df_item = df_item.drop(['Capacity','CasePack'], axis=1)
             message += '\n   Standard Secondary Logic Used'
-        elif sec_logic == 2:
+        elif sec_logic.get() == 2:
             df_item['Sec_Cap'] = df_item.apply(sec_logic_1, axis=1)
             df_item = df_item.drop(['Capacity','CasePack'], axis=1)
             message += '\n   Alt Secondary Logic #1 Used'
         else:
-            message += '\n   Choice of secondary logic is not coded into program.'
+            message += '\n   Choice of secondary logic ({}) is not coded into program.'.format(sec_logic.get())
 
         # Show the user data types and category values prior to merging the tables on store-size category
         message += '\n   Store Size Categories: {} Data type: {}'.format(df_store['BA_Filter'].unique(),df_store.dtypes['BA_Filter'])
@@ -239,6 +238,7 @@ def produce_file():
 root = Tk()
 root.title('Secondary Transaction Creator')
 root.geometry('900x450')
+sec_logic = IntVar()
 
 left_frame = Frame(root)
 left_frame.pack(side=LEFT)
@@ -254,15 +254,13 @@ right_down.pack(side=BOTTOM)
 
 # LEFT FRAME
     
-# R1 = Radiobutton(left_frame, text = 'Standard Logic', variable = sec_logic,
-#         value = 1, indicator = 1,
-#         background = "light blue")
-# R1.grid(row=0, column=0)
+R1 = Radiobutton(left_frame, text = 'Standard Logic', variable = sec_logic,
+        value = 1, background = "light blue")
+R1.grid(row=0, column=0)
 
-# R2 = Radiobutton(left_frame, text = 'Alternate Logic', variable = sec_logic,
-#         value = 2, indicator = 1,
-#         background = "light blue")
-# R2.grid(row=1, column=0)
+R2 = Radiobutton(left_frame, text = 'Alternate Logic', variable = sec_logic,
+        value = 2, background = "light blue")
+R2.grid(row=1, column=0)
 
 L1 = 'Standard Logic:\n  PK = 1 ⇒ SEC = PK*3\n  PK*2 > CAP ⇒ SEC = PK\n  Else SEC = PK*2'
 L2 = 'Alt Logic #1:\n  PK=1 ⇒ SEC=60\n  Else SEC=PK*5'
