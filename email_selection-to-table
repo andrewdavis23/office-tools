@@ -1,0 +1,26 @@
+Sub Email_Selection()
+' How to send an email and convert a range to an HTML table
+
+    Dim EmailApp As Outlook.Application
+    Set EmailApp = New Outlook.Application
+    Dim EmailItem As Outlook.MailItem
+    Set EmailItem = EmailApp.CreateItem(olMailItem)
+
+    Dim msg As String
+
+    msg = "<table>"
+    For Each r In Selection.Rows
+        msg = msg & "<tr>"
+        For Each c In r.Cells
+            msg = msg & "<th>" & c & "</th>"
+        Next
+        msg = msg & "</tr>"
+    Next
+    msg = msg & "</table>"
+    
+    EmailItem.To = "davis.j.andrew@adusaprocurement.com"
+    EmailItem.Subject = "Test: Daily Alerts File"
+    EmailItem.HTMLBody = msg
+    EmailItem.Send
+
+End Sub
