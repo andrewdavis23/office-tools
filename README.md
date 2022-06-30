@@ -1,3 +1,6 @@
+# Depository
+Tools that I've written to help me with generic office tasks.
+
 # VBA
 ###### How to assign a hot-key shortcut to a macro:
 > Microsoft Excel ribbon > developer tab > view macros > select macro > options....
