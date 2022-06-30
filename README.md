@@ -1,7 +1,7 @@
-# Depository
+# __Depository__
 Tools that I've written to help me with generic office tasks.
 
-# VBA
+# __VBA__
 ###### How to assign a hot-key shortcut to a macro:
 > Microsoft Excel ribbon > developer tab > view macros > select macro > options....
 
@@ -17,7 +17,7 @@ Tools that I've written to help me with generic office tasks.
 - Demonstrates sending Excel data in an Outlook
 - Emails a selected range
 
-# Python
+# __Python__
 ## [Basic ODBC Program.py](https://github.com/andrewdavis23/office-tools/blob/main/Basic%20ODBC%20Program.py)
 - Run SQL and export Excel to user-selected location
 
