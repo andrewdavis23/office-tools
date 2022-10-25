@@ -1,10 +1,10 @@
 from tkinter import *
-# from numpy import right_shift
 from tkinter import filedialog
-from datetime import date
 from datetime import timedelta
 import pandas as pd
 import os
+
+print('>'*30)
 
 prog_size = 0
 program_folder = ''
@@ -59,20 +59,34 @@ def load_program():
 
     # Process each sheet in workbook
     try:
-        df_event = pd.read_excel(program_file, sheet_name='tbl_Event')
-        df_store = pd.read_excel(program_file, sheet_name='tbl_Master_Filter', dtype={'BA_Filter':str})
-        df_item = pd.read_excel(program_file, sheet_name='tbl_Pog_Capacity', dtype={'Size':str})
+        try:
+            df_event = pd.read_excel(program_file, sheet_name='tbl_Event', names=['Start_Date','End_Date','Event','Half'])
+        except:
+            df_event = pd.read_excel(program_file, sheet_name=0, names=['Start_Date','End_Date','Event','Half'])
+
+        try:
+            df_store = pd.read_excel(program_file, sheet_name='tbl_Master_Filter', dtype={'BA_Filter':str}, names=['Div','StoreNum','BA_Filter','Kraft_Filter'])
+        except:
+            df_store = pd.read_excel(program_file, sheet_name=1, names=['Div','StoreNum','BA_Filter','Kraft_Filter'], dtype={'BA_Filter':str})
+        
+        try:
+            df_item = pd.read_excel(program_file, sheet_name='tbl_Pog_Capacity', dtype={'Size':str}, names=['Half','Size','Location','Division','Description','ItemNum','Capacity','CasePack','Quantity'])
+        except:
+            df_item = pd.read_excel(program_file, sheet_name=2, names=['Half','Size','Location','Division','Description','ItemNum','Capacity','CasePack','Quantity'], dtype={'Size':str})
         message += f'Program loaded: {df_event.iloc[0,2]}'
-        message += '\n# of (rows, columns) loaded:\n'
-        message += '   {} in Event Data\n'.format(df_event.shape)
-        message += '   {} in Store Data\n'.format(df_store.shape)
-        message += '   {} in Item Capacity Data\n'.format(df_item.shape)
+        message += '\nTable (rows, columns) [column names]:\n'
+        message += '+ Event {} {}\n'.format(df_event.shape,list(df_event.columns.values))
+        message += '+ Store {} {}\n'.format(df_store.shape,list(df_store.columns.values))
+        message += '+ Item  {} {}\n'.format(df_item.shape,list(df_item.columns.values))
 
         # CLEAN 1: Check kraft filter for not null, then drop column
-        if not(df_store['Kraft_Filter'].isna().all()):
-            message += '\nSTOP! Kraft_Filter is not null.\nDo this program manually.'
-            print_message(message, False)
-        df_store = df_store.drop(['Kraft_Filter'], axis=1)
+        try:
+            if not(df_store['Kraft_Filter'].isna().all()):
+                message += '\nSTOP! Kraft_Filter is not null.\nDo this program manually.'
+                print_message(message, False)
+            df_store = df_store.drop(['Kraft_Filter'], axis=1)
+        except:
+            None
 
         # CLEAN 2: In the case where size A = 'Yes' and size B = 'YES'
         df_item['Size'] = df_item['Size'].str.upper()
@@ -86,17 +100,17 @@ def load_program():
         if sec_logic.get() == 1:
             df_item['Sec_Cap'] = df_item.apply(standard_sec_logic, axis=1)
             df_item = df_item.drop(['Capacity','CasePack'], axis=1)
-            message += '\n   Standard Secondary Logic Used'
+            message += '\nStandard Secondary Logic Used'
         elif sec_logic.get() == 2:
             df_item['Sec_Cap'] = df_item.apply(sec_logic_1, axis=1)
             df_item = df_item.drop(['Capacity','CasePack'], axis=1)
-            message += '\n   Alt Secondary Logic #1 Used'
+            message += '\nAlt Secondary Logic #1 Used'
         else:
-            message += '\n   Choice of secondary logic ({}) is not coded into program.'.format(sec_logic.get())
+            message += '\nChoice of secondary logic ({}) is not coded into program.'.format(sec_logic.get())
 
         # Show the user data types and category values prior to merging the tables on store-size category
-        message += '\n   Store Size Categories: {} Data type: {}'.format(df_store['BA_Filter'].unique(),df_store.dtypes['BA_Filter'])
-        message += '\n   Item Size Categories : {} Data type: {}\n'.format(df_item['Size'].unique(),df_item.dtypes['Size'])
+        message += '\n+ Store Size Categories: {} Data type: {}'.format(df_store['BA_Filter'].unique(),df_store.dtypes['BA_Filter'])
+        message += '\n+ Item Size Categories : {} Data type: {}\n'.format(df_item['Size'].unique(),df_item.dtypes['Size'])
 
     except BaseException as em:
         message += '\nLoad Fail\n\tException Message: {}\n'.format(em)
@@ -115,7 +129,8 @@ def produce_file():
     global df_store
     global df_item
     message = ''
-    trans_cols = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS']
+    trans_cols = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS','Program_Name']
+    event_name = df_event.iloc[0,2]
 
     if prog_size == 1:
         # Inner join the stores and items on division and size where half is first/second/both and secondary capacity > 0.
@@ -134,12 +149,11 @@ def produce_file():
         df_trans_in['PRCS_CD'] = 'T'
         df_trans_in['USER_ID'] = 'nuajd15'
         df_trans_in['CRT_TS'] = '(null)'
-        #'2020/12/17:03:49:00 PM' pd.datetime being buggy
-        # will have to get using look up half=2....
         p_start = df_event.loc[0,'Start_Date']
         p_start = p_start - timedelta(days=1)
         p_in = p_start.strftime('%Y/%m/%d')+':03:49:00 PM'
         df_trans_in['PRCS_TS'] = p_in
+        df_trans_in['Program_Name'] = event_name
 
         # reorder columns
         df_trans_in = df_trans_in.reindex(columns = trans_cols)
@@ -151,6 +165,7 @@ def produce_file():
         p_end = p_end - timedelta(weeks=2)
         p_out = p_end.strftime('%Y/%m/%d')+':03:49:00 PM'
         df_trans_out['PRCS_TS'] = p_out
+        df_trans_out['Program_Name'] = event_name
 
         # save files
         fp = os.path.dirname(program_folder) + '/in and out files/' + df_event.iloc[0,2]
@@ -188,6 +203,8 @@ def produce_file():
         p_first_temp = p_first_end - timedelta(weeks=2)
         p_first_out = p_first_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
         df_trans_first_out['PRCS_TS'] = p_first_out
+        df_trans_first_out.drop('Sec_Cap', axis=1, inplace=True)
+        df_trans_first_out['STR_MAINT_NUM'] = 0
 
         p_second_start = df_event.loc[1,'Start_Date']
         p_second_temp = p_second_start - timedelta(days=1)
@@ -198,7 +215,10 @@ def produce_file():
         p_second_temp = p_second_end - timedelta(weeks=2)
         p_second_out = p_second_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
         df_trans_second_out['PRCS_TS'] = p_second_out
+        df_trans_second_out.drop('Sec_Cap', axis=1, inplace=True)
+        df_trans_second_out['STR_MAINT_NUM'] = 0
 
+        # columns that each df should have
         for i in trans_list:
             i.drop(['Half','Size','Division','Div','BA_Filter','HalfWord','Location','Quantity','Description'], axis=1, inplace=True)
             i.rename(columns={'StoreNum': 'STR_NUM', 'ItemNum': 'REF_NUM', 'Sec_Cap':'STR_MAINT_NUM'}, inplace=True)
@@ -210,6 +230,7 @@ def produce_file():
             i.insert(0,'CRT_TS','(null)',allow_duplicates=True)
             i.insert(0,'STR_ID', i['STR_NUM'],allow_duplicates=True)
             i.insert(0,'STR_MAINT_TRANS_CD','IPSC',allow_duplicates=True)
+            i.insert(0,'Program_Name',event_name,allow_duplicates=True)
 
         df_trans_first_in = df_trans_first_in.reindex(columns = trans_cols)
         df_trans_first_out = df_trans_first_out.reindex(columns = trans_cols)
