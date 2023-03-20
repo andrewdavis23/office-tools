@@ -4,8 +4,6 @@ from datetime import timedelta
 import pandas as pd
 import os
 
-print('>'*30)
-
 prog_size = 0
 program_folder = ''
 program_file = ''
@@ -29,6 +27,7 @@ def sec_logic_1(row):
         return row['CasePack'] * 5
 
 def print_message(message, delete):
+    # this function prints the message variable to tkinter, delete=True replaces old text
     if delete:
         files_txt.config(state=NORMAL)
         files_txt.delete('1.0', END)
@@ -65,14 +64,15 @@ def load_program():
             df_event = pd.read_excel(program_file, sheet_name=0, names=['Start_Date','End_Date','Event','Half'])
 
         try:
-            df_store = pd.read_excel(program_file, sheet_name='tbl_Master_Filter', dtype={'BA_Filter':str}, names=['Div','StoreNum','BA_Filter','Kraft_Filter'])
+            df_store = pd.read_excel(program_file, sheet_name='tbl_Master_Filter', dtype={'BA_Filter':str}, names=['Div','StoreNum','BA_Filter'])
         except:
-            df_store = pd.read_excel(program_file, sheet_name=1, names=['Div','StoreNum','BA_Filter','Kraft_Filter'], dtype={'BA_Filter':str})
+            df_store = pd.read_excel(program_file, sheet_name=1, names=['Div','StoreNum','BA_Filter'], dtype={'BA_Filter':str})
         
         try:
             df_item = pd.read_excel(program_file, sheet_name='tbl_Pog_Capacity', dtype={'Size':str}, names=['Half','Size','Location','Division','Description','ItemNum','Capacity','CasePack','Quantity'])
         except:
             df_item = pd.read_excel(program_file, sheet_name=2, names=['Half','Size','Location','Division','Description','ItemNum','Capacity','CasePack','Quantity'], dtype={'Size':str})
+            
         message += f'Program loaded: {df_event.iloc[0,2]}'
         message += '\nTable (rows, columns) [column names]:\n'
         message += '+ Event {} {}\n'.format(df_event.shape,list(df_event.columns.values))
@@ -130,6 +130,8 @@ def produce_file():
     global df_item
     message = ''
     trans_cols = ['STR_MAINT_TRANS_ID','STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','PRCS_CD','USER_ID','CRT_TS','PRCS_TS','Program_Name']
+    
+    # extract event info: name, start, end
     event_name = df_event.iloc[0,2]
 
     if prog_size == 1:
@@ -149,10 +151,7 @@ def produce_file():
         df_trans_in['PRCS_CD'] = 'T'
         df_trans_in['USER_ID'] = 'nuajd15'
         df_trans_in['CRT_TS'] = '(null)'
-        p_start = df_event.loc[0,'Start_Date']
-        p_start = p_start - timedelta(days=1)
-        p_in = p_start.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_in['PRCS_TS'] = p_in
+        df_trans_in['PRCS_TS'] = '(null)'
         df_trans_in['Program_Name'] = event_name
 
         # reorder columns
@@ -161,23 +160,31 @@ def produce_file():
         # copy out file from in
         df_trans_out = df_trans_in.copy()
         df_trans_out['STR_MAINT_NUM'] = 0
-        p_end = df_event.loc[0,'End_Date']
-        p_end = p_end - timedelta(weeks=2)
-        p_out = p_end.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_out['PRCS_TS'] = p_out
+        df_trans_out['PRCS_TS'] = '(null)'
         df_trans_out['Program_Name'] = event_name
+
+        # create schedule for whiteboard notes
+        p_in = df_event.loc[0,'Start_Date']
+        p_in = p_in - timedelta(days=1)
+        p_in = p_in.strftime('%m/%d/%Y')
+
+        p_out = df_event.loc[0,'End_Date']
+        p_out = p_out - timedelta(weeks=2) - timedelta(days=1)
+        p_out = p_out.strftime('%m/%d/%Y')
+
+        with open(os.path.dirname(program_folder)+'/schedule.txt', 'a') as file:
+            file.write('{}\t{}\t{}\n'.format(event_name, p_in, p_out))
 
         # save files
         fp = os.path.dirname(program_folder) + '/in and out files/' + df_event.iloc[0,2]
         df_trans_in.to_csv('{} IN.txt'.format(fp), sep='\t', index=False)
         df_trans_out.to_csv('{} OUT.txt'.format(fp), sep='\t', index=False)
-        message += '\nSTART {}\t\t\tEND {}'.format(df_event.loc[0,'Start_Date'].strftime('%Y/%m/%d')+' '*12, df_event.loc[0,'End_Date'].strftime('%Y/%m/%d')+' '*12)    
-        message += '\nIN    {}\t\t\tOUT {}'.format(p_in, p_out)    
+        message += '\nSTART {}\t\t\tEND {}'.format(p_in, p_out)    
         message += '\n\nIN-file saved to\n   {} IN.txt\n   # of rows = {}'.format(fp,df_trans_in.shape[0])
         message += '\n\nOUT-file saved to\n   {} OUT.txt\n   # of rows = {}'.format(fp,df_trans_out.shape[0])
 
     elif prog_size == 2:
-        # HalfWord is first, second, both.  Merge to lookup the half word
+        # HalfWord is first, second, or both.  Merge to add HalfWord to item dataframe
         df_halves = pd.read_excel(program_file, sheet_name='Items by Half', usecols='A:B')
         df_halves.columns = ['ItemNum', 'HalfWord']
         df_item = pd.merge(df_item, df_halves, how='inner', left_on='ItemNum', right_on='ItemNum')
@@ -192,29 +199,18 @@ def produce_file():
         # second and both
         df_trans_second_out = pd.merge(df_item.loc[(df_item['Sec_Cap']>0) & ((df_item['HalfWord']=='Second')|(df_item['HalfWord']=='Both'))], df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
 
+        # list of dataframes
         trans_list = [df_trans_first_in, df_trans_first_out, df_trans_second_in, df_trans_second_out]
 
-        p_first_start = df_event.loc[0,'Start_Date']
-        p_first_temp = p_first_start - timedelta(days=1)
-        p_first_in = p_first_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_first_in['PRCS_TS'] = p_first_in
-
-        p_first_end = df_event.loc[0,'End_Date']
-        p_first_temp = p_first_end - timedelta(weeks=2)
-        p_first_out = p_first_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_first_out['PRCS_TS'] = p_first_out
+        # makes the columns null, leave blank instead?
+        df_trans_first_in['PRCS_TS'] = '(null)'
+        df_trans_first_out['PRCS_TS'] = '(null)'
+        df_trans_second_in['PRCS_TS'] = '(null)'
+        df_trans_second_out['PRCS_TS'] = '(null)'
+        
+        # change secondary value to 0 in removal files
         df_trans_first_out.drop('Sec_Cap', axis=1, inplace=True)
         df_trans_first_out['STR_MAINT_NUM'] = 0
-
-        p_second_start = df_event.loc[1,'Start_Date']
-        p_second_temp = p_second_start - timedelta(days=1)
-        p_second_in = p_second_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_second_in['PRCS_TS'] = p_second_in
-
-        p_second_end = df_event.loc[1,'End_Date']
-        p_second_temp = p_second_end - timedelta(weeks=2)
-        p_second_out = p_second_temp.strftime('%Y/%m/%d')+':03:49:00 PM'
-        df_trans_second_out['PRCS_TS'] = p_second_out
         df_trans_second_out.drop('Sec_Cap', axis=1, inplace=True)
         df_trans_second_out['STR_MAINT_NUM'] = 0
 
@@ -236,17 +232,38 @@ def produce_file():
         df_trans_first_out = df_trans_first_out.reindex(columns = trans_cols)
         df_trans_second_in = df_trans_second_in.reindex(columns = trans_cols)
         df_trans_second_out = df_trans_second_out.reindex(columns = trans_cols)
-             
+
+        # create schedule for whiteboard notes
+        p_first_in = df_event.loc[0,'Start_Date']
+        p_first_in = p_first_in - timedelta(days=1)
+        p_first_in = p_first_in.strftime('%m/%d/%Y')
+
+        p_first_out = df_event.loc[0,'End_Date']
+        p_first_out = p_first_out - timedelta(days=14)
+        p_first_out = p_first_out.strftime('%m/%d/%Y')
+
+        p_second_in = df_event.loc[1,'Start_Date']
+        p_second_in = p_second_in - timedelta(days=1)
+        p_second_in = p_second_in.strftime('%m/%d/%Y')
+
+        p_second_out = df_event.loc[1,'End_Date']
+        p_second_out = p_second_out - timedelta(days=14)
+        p_second_out = p_second_out.strftime('%m/%d/%Y')
+
+        with open(os.path.dirname(program_folder) + 'schedule.txt', 'a') as file:
+            file.write('{} 1\t{}\t{}\n'.format(event_name, p_first_in, p_first_out))
+            file.write('{} 2\t{}\t{}\n'.format(event_name, p_second_in, p_second_out))
+      
+        # save files
         fp = os.path.dirname(program_folder) + '/in and out files/' + df_event.iloc[0,2]
-        df_trans_first_in.to_csv('{}FIRST IN.txt'.format(fp), sep='\t', index=False)
-        df_trans_first_out.to_csv('{}FIRST OUT.txt'.format(fp), sep='\t', index=False)
-        df_trans_second_in.to_csv('{}SECOND IN.txt'.format(fp), sep='\t', index=False)
-        df_trans_second_out.to_csv('{}SECOND OUT.txt'.format(fp), sep='\t', index=False)
+        df_trans_first_in.to_csv('{} FIRST IN.txt'.format(fp), sep='\t', index=False)
+        df_trans_first_out.to_csv('{} FIRST OUT.txt'.format(fp), sep='\t', index=False)
+        df_trans_second_in.to_csv('{} SECOND IN.txt'.format(fp), sep='\t', index=False)
+        df_trans_second_out.to_csv('{} SECOND OUT.txt'.format(fp), sep='\t', index=False)
         message += '\nFIRST HALF\n'
-        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_first_start, p_first_end)    
-        message += '\tIN\t{}\t\t\tOUT\t{}'.format(p_first_in, p_first_out) 
+        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_first_in, p_first_out)    
         message += '\nSECOND HALF\n'
-        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_second_start, p_second_end)    
+        message += '\tSTART\t{}\t\t\tEND\t{}\n'.format(p_second_in, p_second_out)    
         message += '\tIN\t{}\t\t\tOUT\t{}'.format(p_second_in, p_second_out)
         message += '\n\nFILES SAVED TO {}'.format(fp)
         message += '\n\tFIRST IN\t{} rows\n\tFIRST OUT\t{}\n\tSECOND IN\t{}\n\tSECOND OUT\t{}'.format(df_trans_first_in.shape[0],df_trans_first_out.shape[0],df_trans_second_in.shape[0],df_trans_second_out.shape[0])
