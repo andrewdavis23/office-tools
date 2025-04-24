@@ -25,6 +25,11 @@ Tools that I've written to help me with generic office tasks.
 - A task specific data cleaner
 - Redacted and stored for backup
 
+## [Secondary Programs V2](https://github.com/andrewdavis23/office-tools/blob/main/secondary%20programs%20v2.py)
+- Uses class structure
+- Breaks out some of the functions
+- Is scalable to perform ETL
+
 ## [py-combos 3-28-2022.py](https://github.com/andrewdavis23/office-tools/blob/main/py-combos%203-28-2022.py)
 - Returns combinations of two lists
 - Duplicates removed
