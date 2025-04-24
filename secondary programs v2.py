@@ -240,6 +240,8 @@ def save_files(SP):
         except Exception as e:
             print(f"Save Failed for {SP.event_name}: {e}")
 
+## ---- MAIN ---- ##
+
 SecProg = load_program()                            # select file, create class & dataframes from tables
 if SecProg is not None:
     SecProg = clean(SecProg)                        # clean and apply secondary logic
