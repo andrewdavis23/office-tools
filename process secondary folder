@@ -1,0 +1,243 @@
+import pandas as pd
+import os
+import pickle
+
+class SecProgClass:
+    def __init__(self):                         # Data tables from planning team:
+        self.df_event = pd.DataFrame()          # program name, begin date and start date
+        self.df_store = pd.DataFrame()          # list of stores and size categories
+        self.df_item = pd.DataFrame()           # list of items, size categories, capacity, pack size
+        self.df_halves = pd.DataFrame()         # for two-part programs only, which half each item belongs to (first, both, second)
+        self.prog_size = 0                      # program size: one or two part
+        self.file_path = ''                     # path to program file 
+        self.event_name = ''                    # name of program from the event table
+        self.file_name = ''                     # name of program from Excel file name (often written more clearly)
+        self.store_row_count = 0                # metadata
+        self.item_row_count = 0                 # metadata
+        self.trans_cols = ['STR_ID','STR_NUM','REF_NUM','STR_MAINT_TRANS_CD','STR_MAINT_NUM','STR_MAINT_CD','STR_MAINT_CHAR_TXT','USER_ID','Program_Name']
+        self.trans_files = []                   # maintenance files, will contain 2 or 4 files depending on program size
+        self.save_path = ''
+
+# load the secret folder paths
+with open('C:\\python\\VARIABLES.txt', 'r') as f:
+    lines = [line.strip() for line in f]
+
+save_folder, base_item_link_file, program_folder = lines
+
+# a list of all the sleeve item codes in CCAO
+sleeve_codes = pd.read_excel(base_item_link_file, usecols=[0]).squeeze().tolist()
+
+def standard_sec_logic(row):
+    if row['ItemNum'] in sleeve_codes:
+        return 1
+    elif row['CasePack'] == 1:
+        return row['CasePack'] * 3
+    elif row['CasePack'] * 2 > row['Capacity']:
+        return row['CasePack']
+    else:
+        return row['CasePack'] * 2
+
+def load_event_data(SP):
+    col_names = ['Start_Date','End_Date','Event','Half']
+    try:
+        SP.df_event = pd.read_excel(SP.file_path, sheet_name='tbl_Event', names=col_names, header=0)
+    except:
+        print('Unexpected column names')
+        SP.df_event = pd.read_excel(SP.file_path, sheet_name=0, names=col_names, header=0)
+
+def load_store_data(SP):
+    col_names = ['LEGACY DIVISION', 'STORE', 'BA_Filter']
+    try:
+        SP.df_store = pd.read_excel(SP.file_path, sheet_name='tbl_Master_Filter', dtype={'BA_Filter':str})
+    except:
+        SP.df_store = pd.read_excel(SP.file_path, sheet_name=1, names=col_names, dtype={'BA_Filter':str}, header=0)
+
+def load_item_data(SP):
+    col_names = ['Half','Size','Location','Division','Description','ItemNum','Capacity','CasePack','Quantity']
+    try:
+        SP.df_item = pd.read_excel(SP.file_path, sheet_name='tbl_Pog_Capacity', dtype={'Size':str})
+    except:
+        SP.df_item = pd.read_excel(SP.file_path, sheet_name=2, names=col_names, dtype={'Size':str}, header=0)
+
+def load_half_data(SP):
+    col_names = ['ItemNum', 'HalfWord']
+    try:
+        SP.df_halves = pd.read_excel(SP.file_path, sheet_name='Items by Half', usecols='A:B')
+    except:
+        SP.df_halves = pd.read_excel(SP.file_path, sheet_name=3, names=col_names, header=0)
+
+def create_dataframes(SP):
+    # create data frames from sheets
+    load_event_data(SP)
+    load_store_data(SP)
+    load_item_data(SP)
+
+    SP.event_name = SP.df_event.iloc[0,2]
+    SP.prog_size = SP.df_event.iloc[0,3]
+    SP.store_row_count = SP.df_store.shape[0]
+    SP.item_row_count = SP.df_item.shape[0]
+
+    # print data shape
+    print('*' * 120)
+    print('Program loaded: {}'.format(SP.event_name))
+    print('+ Store {} Rows: {}'.format(list(SP.df_store.columns.values), SP.store_row_count))
+    print('+ Item  {} Rows: {}'.format(list(SP.df_item.columns.values), SP.item_row_count))
+
+    # Show the user data types and category values prior to merging the tables on store-size category
+    print('+ Store Size Categories: {} Data type: {}'.format(SP.df_store['BA_Filter'].unique(), SP.df_store.dtypes['BA_Filter']))
+    print('+ Item Size Categories : {} Data type: {}\n'.format(SP.df_item['Size'].unique(), SP.df_item.dtypes['Size']))
+
+def load_file(f):
+    SP = SecProgClass()
+    SP.file_path = f
+    SP.file_name = os.path.splitext(os.path.basename(f))[0]
+
+    # create data frames from sheets
+    load_event_data(SP)
+    load_store_data(SP)
+    load_item_data(SP)
+
+    SP.event_name = SP.df_event.iloc[0,2]
+    SP.prog_size = SP.df_event.iloc[0,3]
+    SP.store_row_count = SP.df_store.shape[0]
+    SP.item_row_count = SP.df_item.shape[0]
+
+    return SP
+
+def clean(SP):
+    # CLEAN 1: Check kraft filter for not null, then drop column
+    try:
+        if not(SP.df_store['Kraft_Filter'].isna().all()):
+            print('\nSTOP! Kraft_Filter is not null.\nDo this program manually.')
+        SP.df_store = SP.df_store.drop(['Kraft_Filter'], axis=1)
+    except:
+        None
+
+    # CLEAN 2: In the case where size A = 'Yes' and size B = 'YES'
+    SP.df_item['Size'] = SP.df_item['Size'].str.upper()
+    SP.df_store['BA_Filter'] = SP.df_store['BA_Filter'].str.upper()
+
+    # CLEAN 3: Remove stores that are not part of the program
+    SP.df_store = SP.df_store[SP.df_store['BA_Filter'] != 'NO']
+    SP.df_store = SP.df_store.dropna()
+
+def preprocess(SP):
+    # PREPROCESS 1: Calculate secondary capacity from capacity, casepack then drop columns
+    SP.df_item['Sec_Cap'] = SP.df_item.apply(standard_sec_logic, axis=1)
+    SP.df_item = SP.df_item.drop(['Capacity','CasePack'], axis=1)
+
+def produce_file_1(SP):
+    # Inner join the stores and items on division and size where half is first/second/both and secondary capacity > 0.
+    df_trans_in = pd.merge(SP.df_item.loc[(SP.df_item['Sec_Cap']>0) & (SP.df_item['Half']==1)], SP.df_store, how='inner', left_on=['Division','Size'], right_on=['LEGACY DIVISION','BA_Filter'])
+    
+    # drop columns not needed in transmission file
+    df_trans_in = df_trans_in.drop(['Half','Size','Division','LEGACY DIVISION','BA_Filter'], axis=1)
+
+    # add/rename columns needed in transmission file
+    df_trans_in = df_trans_in.rename(columns={'STORE': 'STR_NUM', 'ItemNum': 'REF_NUM', 'Sec_Cap':'STR_MAINT_NUM'})
+    df_trans_in['STR_ID'] = df_trans_in['STR_NUM']
+    df_trans_in['STR_MAINT_TRANS_CD'] = 'IPSC'
+    df_trans_in['STR_MAINT_CD'] = 'N'
+    df_trans_in['STR_MAINT_CHAR_TXT'] = '(null)'
+    df_trans_in['USER_ID'] = 'nuajd15'
+    df_trans_in['Program_Name'] = SP.event_name
+
+    # reorder columns
+    df_trans_in = df_trans_in.reindex(columns = SP.trans_cols)
+
+    # copy out file from in
+    df_trans_out = df_trans_in.copy()
+    df_trans_out['STR_MAINT_NUM'] = 0
+            
+    SP.trans_files = [("IN", df_trans_in), ("OUT", df_trans_out)]
+    
+def produce_file_2(SP):
+    SP.df_halves = load_half_data(SP.file_name)
+
+    # Inner join the stores and items on division and size where half is first/second/both and secondary capacity > 0.
+    # first and both
+    df_trans_first_in = pd.merge(SP.df_item.loc[(SP.df_item['Sec_Cap']>0) & ((SP.df_item['HalfWord']=='First')|(SP.df_item['HalfWord']=='Both'))], SP.df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
+    # first
+    df_trans_first_out = pd.merge(SP.df_item.loc[(SP.df_item['Sec_Cap']>0) & (SP.df_item['HalfWord']=='First')], SP.df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
+    # second
+    df_trans_second_in = pd.merge(SP.df_item.loc[(SP.df_item['Sec_Cap']>0) & (SP.df_item['HalfWord']=='Second')], SP.df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
+    # second and both
+    df_trans_second_out = pd.merge(SP.df_item.loc[(SP.df_item['Sec_Cap']>0) & ((SP.df_item['HalfWord']=='Second')|(SP.df_item['HalfWord']=='Both'))], SP.df_store, how='inner', left_on=['Division','Size'], right_on=['Div','BA_Filter'])
+
+    trans_list = [df_trans_first_in, df_trans_first_out, df_trans_second_in, df_trans_second_out]
+
+    # columns that each df should have
+    for i in trans_list:
+        i.drop(['Half','Size','Division','Div','BA_Filter','HalfWord','Location','Quantity','Description'], axis=1, inplace=True)
+        i.rename(columns={'StoreNum': 'STR_NUM', 'ItemNum': 'REF_NUM', 'Sec_Cap':'STR_MAINT_NUM'}, inplace=True)
+        i.insert(0,'STR_MAINT_TRANS_ID','', allow_duplicates=True)
+        i.insert(0,'STR_MAINT_CD','N', allow_duplicates=True)
+        i.insert(0,'STR_MAINT_CHAR_TXT','(null)', allow_duplicates=True)
+        i.insert(0,'PRCS_CD','T', allow_duplicates=True)
+        i.insert(0,'USER_ID','nuajd15', allow_duplicates=True)
+        i.insert(0,'CRT_TS','(null)', allow_duplicates=True)
+        i.insert(0,'STR_ID', i['STR_NUM'], allow_duplicates=True)
+        i.insert(0,'STR_MAINT_TRANS_CD','IPSC', allow_duplicates=True)
+        i.insert(0,'Program_Name',SP.event_name, allow_duplicates=True)
+
+    df_trans_first_in = df_trans_first_in.reindex(columns = SP.trans_cols)                   # what did this do?
+    df_trans_first_out = df_trans_first_out.reindex(columns = SP.trans_cols)
+    df_trans_second_in = df_trans_second_in.reindex(columns = SP.trans_cols)
+    df_trans_second_out = df_trans_second_out.reindex(columns = SP.trans_cols)
+                
+    SP.trans_files = [("FIRST IN", df_trans_first_in), ("FIRST OUT", df_trans_first_out), ("SECOND IN", df_trans_second_in), ("SECOND OUT", df_trans_second_out)]
+
+def produce_file(SP):
+    if SP.prog_size == 1:
+        produce_file_1(SP)
+    elif SP.prog_size == 2:
+        produce_file_2(SP)
+    else:
+        print("Program size not 1 or 2")
+
+def clean_file_name(str):
+    # remove character windows can't use in a file name
+    bad_chars = '<>:"/\\|?*'
+    safe_name = ''.join(c for c in str if c not in bad_chars)
+    return safe_name
+
+def get_directory():
+    global program_folder
+
+    excel_files = [os.path.join(program_folder, f) for f in os.listdir(program_folder) if f.lower().endswith(('.xlsx', '.xls'))]
+
+    return excel_files
+
+
+############## MAIN ##############
+
+try:
+    sec_prog_class_list = []
+    dir_list = get_directory()
+    dir_list.remove(base_item_link_file)
+    dir_len = len(dir_list)
+    counter = 0
+    print(f'Directory loaded: {dir_len} files')
+
+    for f in dir_list:
+        counter += 1
+        print(f'{counter} of {dir_len}')
+        SecProg = load_file(f)
+        create_dataframes(SecProg)            # select file, create class & dataframes from tables
+        clean(SecProg)                        # clean and apply secondary logic
+        preprocess(SecProg)                   # (*TO DO* Add sleeve code logic) Merge tables 
+        produce_file(SecProg)                 # create dataframes for CCAO upload files (in/out, one-part/two-halves)
+        sec_prog_class_list.append(SecProg)                           
+
+        # All data per program is saves to the SecProg class
+        # The transaction files are saved to SecProgClass.trans_files as a tuple: ("IN/OUT")
+
+except:
+    # store partial list of classes as pickle file
+    with open('classes.pkl', 'wb') as f:
+        pickle.dump(sec_prog_class_list, f)
+
+# store list of classes as pickle file (all data needed from Excel file directory)
+with open('classes.pkl', 'wb') as f:
+    pickle.dump(sec_prog_class_list, f)
+
