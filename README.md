@@ -30,7 +30,7 @@ Tools that I've written to help me with generic office tasks.
 - Breaks out some of the functions
 - Is scalable to perform ETL
 
-## [process secondary folder]
+## [process secondary folder](https://github.com/andrewdavis23/office-tools/blob/main/process%20secondary%20folder)
 - takes the entire folder of excel files
 - creates a list of classes
 - classes contain all data and metadata needed for each secondary program
