@@ -30,6 +30,13 @@ Tools that I've written to help me with generic office tasks.
 - Breaks out some of the functions
 - Is scalable to perform ETL
 
+## [process secondary folder]
+- takes the entire folder of excel files
+- creates a list of classes
+- classes contain all data and metadata needed for each secondary program
+- saves the list as a pickle
+- will need to modify to allow new drops (dump folder > process > add excel file to archive folder)
+
 ## [py-combos 3-28-2022.py](https://github.com/andrewdavis23/office-tools/blob/main/py-combos%203-28-2022.py)
 - Returns combinations of two lists
 - Duplicates removed
